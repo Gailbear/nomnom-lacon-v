@@ -1,6 +1,6 @@
 name: "lacon-v"
 x-image: &image
-  image: ghcr.io/laconorg/lacon-v:${NOMNOM_VERSION:-main}
+  image: ${NOMNOM_IMAGE:-ghcr.io/laconorg/nomnom-lacon-v}:${NOMNOM_VERSION:-main}
 x-boot: &boot
   depends_on:
     boot:
@@ -22,7 +22,6 @@ services:
     <<: [*image, *boot]
     volumes:
       - staticfiles:/staticfiles
-      - ./local/:/data
     ports:
       - "127.0.0.1:8000:8000"
     command: bash /app/docker/start.sh server
@@ -62,7 +61,7 @@ services:
     <<: [*image, *boot]
     command: /app/docker/start.sh beat
     links:
-      - db
+      - pgbouncer
       - redis
     env_file:
       - .env
@@ -70,7 +69,6 @@ services:
       <<: [*db, *redis, *staticfiles]
     volumes:
       - staticfiles:/staticfiles:ro
-      - /local/:/data
 
   boot:
     <<: *image
@@ -82,15 +80,11 @@ services:
       - .env
     volumes:
       - staticfiles:/staticfiles
-      - ./local/:/data
     depends_on:
       pgbouncer:
         condition: service_healthy
-      db:
-        condition: service_healthy
     links:
       - pgbouncer
-      - db
       - redis
 
   pgbouncer:
@@ -103,25 +97,7 @@ services:
     environment:
       - POSTGRES_PASSWORD=${NOM_DB_PASSWORD}
     healthcheck:
-      test: ["CMD", "pg_isready", "-h", "localhost"]
-
-  db:
-    image: postgres:17.1
-    volumes:
-      - db-data:/var/lib/postgresql/data
-    ports:
-      - 5432
-    environment:
-      - POSTGRES_DB=${NOM_DB_NAME}
-      - POSTGRES_USER=${NOM_DB_USER}
-      - POSTGRES_PASSWORD=${NOM_DB_PASSWORD}
-    healthcheck:
-      test:
-        ["CMD-SHELL", "pg_isready", "-d", "$NOM_DB_NAME", "-u", "$NOM_DB_USER"]
-      interval: 30s
-      timeout: 60s
-      retries: 5
-      start_period: 80s
+      test: ["CMD", "pg_isready", "-h", "localhost", "-U nomnom_production"]
 
   redis:
     image: redis:7
@@ -137,7 +113,7 @@ services:
   # This container and Dozzle provide a logging endpoint access over my personal tailnet,
   # so that I can view the container logs on this host without ssh as needed.
   tailscale-sidecar:
-    hostname: nomnom-lacon-prod-logs
+    hostname: ${LOGGING_HOSTNAME:-nomnom-lacon-production-logs}
     volumes:
       - tailscale-data:/var/lib/tailscale
     devices:
@@ -155,7 +131,7 @@ services:
     network_mode: "service:tailscale-sidecar"
     restart: unless-stopped
     environment:
-      DOZZLE_HOSTNAME: "nomnom-lacon-prod-logs"
+      DOZZLE_HOSTNAME: "nomnom-lacon-production-logs"
       DOZZLE_AUTH_PROVIDER: forward-proxy
       DOZZLE_AUTH_HEADER_USER: "Tailscale-User-Login"
       DOZZLE_AUTH_HEADER_NAME: "Tailscale-User-Name"
@@ -164,6 +140,5 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
 
 volumes:
-  db-data:
   staticfiles:
   tailscale-data:
