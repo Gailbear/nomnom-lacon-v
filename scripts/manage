@@ -1,0 +1,20 @@
+#!/bin/bash
+set -euo pipefail
+
+# Determine environment (default to production)
+NOMNOM_STAGE="${NOMNOM_STAGE:-production}"
+
+COMPOSE_FILE="deploy/${NOMNOM_STAGE}/compose.yml"
+export COMPOSE_FILE
+
+# Check if any arguments were provided
+if [[ $# -eq 0 ]]; then
+    echo "Usage: $0 <manage.py command> [args...]" >&2
+    echo "Example: $0 migrate" >&2
+    echo "Example: $0 shell" >&2
+    echo "Example: $0 createsuperuser" >&2
+    exit 1
+fi
+
+# Execute manage.py in the running web container
+exec docker compose exec web python manage.py "$@"

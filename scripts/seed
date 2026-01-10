@@ -1,0 +1,76 @@
+#!/bin/bash
+set -euo pipefail
+
+# Determine environment (default to production)
+NOMNOM_STAGE="${NOMNOM_STAGE:-production}"
+
+# Find the project root (where the seed directory should be)
+SCRIPT_DIR="$(dirname "$0")"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+DEPLOY_DIR="${PROJECT_ROOT}/deploy/${NOMNOM_STAGE}"
+
+COMPOSE_FILE="${DEPLOY_DIR}/compose.yml"
+export COMPOSE_FILE
+
+# Check if seed directory exists
+if [[ ! -d "${PROJECT_ROOT}/seed/all" ]]; then
+    echo "Error: seed/all directory not found at ${PROJECT_ROOT}/seed/all" >&2
+    echo "Make sure you're running this from a checkout of the nomnom repository." >&2
+    exit 1
+fi
+
+echo "Seeding ${NOMNOM_STAGE} environment..."
+
+# Run seeding in a new container with seed directory mounted
+# Only load fixtures from seed/all/ for production seeding
+docker compose run --no-deps --rm -v "${PROJECT_ROOT}/seed:/app/seed:ro" web -- bash -c '
+    set -e
+    cd /app
+    
+    # Check which apps are installed
+    INSTALLED_APPS=$(python manage.py shell -c "from django.conf import settings; print(\",\".join(settings.INSTALLED_APPS))")
+    
+    echo "Checking installed apps..."
+    HAS_HUGOPACKET=false
+    HAS_ADVISE=false
+    
+    if echo "$INSTALLED_APPS" | grep -q "hugopacket"; then
+        echo "  ✓ hugopacket app is installed"
+        HAS_HUGOPACKET=true
+    else
+        echo "  ✗ hugopacket app is not installed (skipping hugopacket permissions)"
+    fi
+    
+    if echo "$INSTALLED_APPS" | grep -q "advise"; then
+        echo "  ✓ advise app is installed"
+        HAS_ADVISE=true
+    else
+        echo "  ✗ advise app is not installed (skipping advise permissions)"
+    fi
+    
+    echo ""
+    echo "Loading core fixtures..."
+    
+    for seed_file in /app/seed/all/*.json; do
+        if [[ -f "$seed_file" ]]; then
+            filename=$(basename "$seed_file")
+            
+            # Skip app-specific permission files if the app is not installed
+            if [[ "$filename" == *"-hugopacket.json" ]] && [[ "$HAS_HUGOPACKET" != "true" ]]; then
+                echo "Skipping $filename (hugopacket not installed)"
+                continue
+            fi
+            
+            if [[ "$filename" == *"-advise.json" ]] && [[ "$HAS_ADVISE" != "true" ]]; then
+                echo "Skipping $filename (advise not installed)"
+                continue
+            fi
+            
+            echo "Loading fixture: $seed_file"
+            python manage.py loaddata "$seed_file"
+        fi
+    done
+    
+    echo ""
+    echo "Seeding completed successfully"
+'

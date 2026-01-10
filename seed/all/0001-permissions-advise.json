@@ -1,0 +1,18 @@
+[
+    {
+        "model": "auth.group",
+        "fields": {
+            "name": "WSFS Administrator",
+            "permissions": [
+                ["can_preview", "advise", "proposal"]
+            ]
+        }
+    },
+    {
+        "model": "auth.group",
+        "fields": {
+            "name": "Advisory Preview",
+            "permissions": [["can_preview", "advise", "proposal"]]
+        }
+    }
+]

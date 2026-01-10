@@ -7,6 +7,12 @@ set -eu -o pipefail
 # Don't accept compose files from the environment
 unset COMPOSE_FILE
 
+# make sure the service we're checking are running
+docker compose up --wait db redis mailcatcher >&2 || {
+    echo "Failed to start required services" >&2
+    exit 1
+}
+
 get_service_port() {
     docker compose port $1 $2 | cut -d: -f2
 }

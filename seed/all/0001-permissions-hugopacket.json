@@ -1,0 +1,42 @@
+[
+    {
+        "model": "auth.group",
+        "fields": {
+            "name": "WSFS Administrator",
+            "permissions": [
+                ["add_electionpacket", "hugopacket", "electionpacket"],
+                ["change_electionpacket", "hugopacket", "electionpacket"],
+                ["delete_electionpacket", "hugopacket", "electionpacket"],
+                ["view_electionpacket", "hugopacket", "electionpacket"],
+                ["add_packetfile", "hugopacket", "packetfile"],
+                ["change_packetfile", "hugopacket", "packetfile"],
+                ["delete_packetfile", "hugopacket", "packetfile"],
+                ["view_packetfile", "hugopacket", "packetfile"],
+                ["preview_packet", "hugopacket", "electionpacket"]
+            ]
+        }
+    },
+    {
+        "model": "auth.group",
+        "fields": {
+            "name": "WSFS Staff",
+            "permissions": [
+                ["add_electionpacket", "hugopacket", "electionpacket"],
+                ["change_electionpacket", "hugopacket", "electionpacket"],
+                ["delete_electionpacket", "hugopacket", "electionpacket"],
+                ["view_electionpacket", "hugopacket", "electionpacket"],
+                ["add_packetfile", "hugopacket", "packetfile"],
+                ["change_packetfile", "hugopacket", "packetfile"],
+                ["delete_packetfile", "hugopacket", "packetfile"],
+                ["view_packetfile", "hugopacket", "packetfile"]
+            ]
+        }
+    },
+    {
+        "model": "auth.group",
+        "fields": {
+            "name": "Preview Packet",
+            "permissions": [["preview_packet", "hugopacket", "electionpacket"]]
+        }
+    }
+]

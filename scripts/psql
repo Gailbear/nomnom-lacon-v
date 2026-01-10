@@ -1,0 +1,29 @@
+#!/bin/bash
+set -euo pipefail
+
+# Determine environment (default to production)
+NOMNOM_STAGE="${NOMNOM_STAGE:-production}"
+
+COMPOSE_FILE="deploy/${NOMNOM_STAGE}/compose.yml"
+export COMPOSE_FILE
+
+# Source the .env file to get credentials
+if [[ ! -f "$(dirname $COMPOSE_FILE)"/.env ]]; then
+    echo "Error: .env file not found in "$(dirname $COMPOSE_FILE)"" >&2
+    exit 1
+fi
+
+# Export the DB password for psql
+set -a
+source "$(dirname $COMPOSE_FILE)"/.env
+set +a
+
+# Determine database name based on environment
+DB_NAME="nomnom_${NOMNOM_STAGE}"
+PGPASSWORD="${NOM_DB_PASSWORD}"
+export PGPASSWORD
+
+# Connect to psql via pgbouncer container
+# Pass any additional arguments to psql
+exec docker compose exec -e PGPASSWORD pgbouncer \
+    psql -h localhost -U "${DB_NAME}" -d "${DB_NAME}" "$@"
