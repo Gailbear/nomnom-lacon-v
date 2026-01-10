@@ -1,6 +1,7 @@
 import logging
 
 from django.contrib.auth.signals import user_logged_in
+from django.db import ProgrammingError
 from django.dispatch import receiver
 from .models import OIDCSessionMapping
 
@@ -31,5 +32,12 @@ def create_oidc_session_mapping(sender, request, user, **kwargs):  # type: ignor
 
         OIDCSessionMapping.objects.create(sid=sid, session_key=session_key)
         logger.info("Created OIDC mapping: sid=%s -> session=%s", sid, session_key)
+    except ProgrammingError as e:
+        # Table doesn't exist yet - this can happen during migrations or initial setup
+        logger.warning(
+            "OIDC mapping skipped: database table not ready. "
+            "Run migrations to create the table. Error: %s",
+            e,
+        )
     except Exception:
         logger.exception("Error creating OIDC session mapping on user_logged_in")

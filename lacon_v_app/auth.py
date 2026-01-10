@@ -69,12 +69,15 @@ def adapt_personal_information(
 ) -> None:
     """Adapt personal information from response using field priority rules"""
     # Name priority: preferred_name > given_name > nickname
-    preferred_name = response.get("preferred_name")
+    preferred_name = response.get("badge-name")
+    name = response.get("name")
     given_name = response.get("given_name")
     nickname = response.get("nickname")
 
     if preferred_name:
         name_to_use = preferred_name
+    elif name:
+        name_to_use = name
     elif given_name:
         name_to_use = given_name
     else:
@@ -89,6 +92,10 @@ def adapt_personal_information(
 
         # Store preferred name separately
         details["preferred_name"] = name_to_use
+    else:
+        details["first_name"] = "WSFS"
+        details["last_name"] = "Member"
+        details["preferred_name"] = f"WSFS Member {response['reg-id']}"
 
     # Map email
     email = response.get("email")

@@ -42,7 +42,8 @@ def generate_auth_response(
     membership_type="Unknown",
     is_in_person=False,
     reg_id_format="standard",  # standard, hyphenated, dots, short
-    use_preferred_name=True,
+    use_badge_name=True,
+    use_name=True,
     use_given_name=True,
     use_nickname=True,
 ):
@@ -84,16 +85,18 @@ def generate_auth_response(
     elif reg_id_format == "short":
         base_response["reg-id"] = f"{fake.random_int(min=100, max=999)}"
 
-    # Generate names
+    # Generate names - priority is badge-name > name > given_name > nickname
     first_name = fake.first_name()
     last_name = fake.last_name()
 
-    if use_preferred_name:
-        base_response["preferred_name"] = f"{first_name} {last_name}"
+    if use_badge_name:
+        base_response["badge-name"] = fake.name_nonbinary()
+
+    if use_name:
+        base_response["name"] = f"{first_name} {last_name}"
 
     if use_given_name:
         base_response["given_name"] = f"{first_name} {last_name}"
-        base_response["name"] = f"{first_name} {last_name}"
 
     if use_nickname:
         base_response["nickname"] = fake.user_name()
@@ -127,16 +130,38 @@ REG_ID_FORMATS = ["standard", "hyphenated", "dots", "short"]
 reg_id_format_param = pytest.mark.parametrize("reg_id_format", REG_ID_FORMATS)
 
 NAME_VARIATIONS = [
-    (True, True, True),  # has preferred, given, nickname
-    (True, False, True),  # has preferred, no given, has nickname
-    (False, True, True),  # no preferred, has given, has nickname
-    (False, False, True),  # no preferred, no given, has nickname
-    (False, True, False),  # no preferred, has given, no nickname
+    (True, True, True, True),  # has badge (highest priority), name, given, nickname
+    (True, False, True, True),  # has badge, no name, has given, has nickname
+    (True, False, False, True),  # has badge, no name, no given, has nickname
+    (False, True, True, True),  # no badge, has name (next priority), given, nickname
+    (False, True, False, True),  # no badge, has name, no given, has nickname
+    (
+        False,
+        False,
+        True,
+        True,
+    ),  # no badge, no name, has given (next priority), has nickname
+    (False, False, True, False),  # no badge, no name, has given, no nickname
+    (
+        False,
+        False,
+        False,
+        True,
+    ),  # no badge, no name, no given, only nickname (lowest priority)
 ]
 name_variations_param = pytest.mark.parametrize(
-    "use_preferred,use_given,use_nickname",
+    "use_badge,use_name,use_given,use_nickname",
     NAME_VARIATIONS,
-    ids=["all_names", "no_given", "no_preferred", "only_nickname", "given_only"],
+    ids=[
+        "badge_priority",
+        "badge_no_name",
+        "badge_minimal",
+        "name_priority",
+        "name_no_given",
+        "given_priority",
+        "given_no_nickname",
+        "nickname_only",
+    ],
 )
 in_person_param = pytest.mark.parametrize(
     "is_in_person", [True, False], ids=["in_person", "virtual"]
@@ -228,10 +253,17 @@ class TestGetWsfsPermissions:
 class TestAdaptPersonalInformation:
     @name_variations_param
     def test_name_handling_variations(
-        self, mock_strategy, test_user, use_preferred, use_given, use_nickname
+        self,
+        mock_strategy,
+        test_user,
+        use_badge,
+        use_name,
+        use_given,
+        use_nickname,
     ):
         response = generate_auth_response(
-            use_preferred_name=use_preferred,
+            use_badge_name=use_badge,
+            use_name=use_name,
             use_given_name=use_given,
             use_nickname=use_nickname,
         )
@@ -239,9 +271,16 @@ class TestAdaptPersonalInformation:
 
         adapt_personal_information(mock_strategy, details, test_user, response=response)
 
-        # Test that we get some kind of name
-        if use_preferred:
-            expected_name = response["preferred_name"]
+        # Test that we get some kind of name - priority: badge-name > name > given_name > nickname
+        if use_badge:
+            expected_name = response["badge-name"]
+            name_parts = expected_name.split()
+            assert details["first_name"] == name_parts[0]
+            if len(name_parts) > 1:
+                assert details["last_name"] == " ".join(name_parts[1:])
+            assert details["preferred_name"] == expected_name
+        elif use_name:
+            expected_name = response["name"]
             name_parts = expected_name.split()
             assert details["first_name"] == name_parts[0]
             if len(name_parts) > 1:
@@ -283,11 +322,12 @@ class TestAdaptPersonalInformation:
 
     def test_handles_missing_fields(self, mock_strategy, test_user):
         details = {}
-        response = {}
+        # the reg-id is required at this point in the pipeline
+        response = {"reg-id": "member-12345"}
 
         adapt_personal_information(mock_strategy, details, test_user, response=response)
 
-        assert "first_name" not in details
+        assert details["first_name"] == "WSFS"
         assert "email" not in details
         assert details["membership_type"] is None
         assert details["is_in_person"] is False
